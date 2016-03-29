@@ -1,0 +1,398 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage[absolute,verbose,overlay]{textpos}
+\usepackage{amssymb}
+\usepackage{tikz} 
+\usepackage{colortbl}
+\usepackage[figurewithin=section]{caption}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{xr}
+\usepackage{pdflscape}
+\usepackage{Sweave}
+%\VignetteIndexEntry{Using BadRegionFinder}
+
+<<echo=FALSE>>=
+options(width=100)
+@
+
+\title{BadRegionFinder -- an R/Bioconductor package for identifying regions with bad coverage}
+\author{Sarah Sandmann}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+\maketitle
+
+\tableofcontents
+
+\section{Introduction}
+In the use case of targeted sequencing, determining the coverage of the targeted regions is a crucial step. A sufficient coverage of the target regions is essential. Otherwise, all subsequent experiments might fail. Mutations might for example not be detected, because the corresponding regions are hardly covered. 
+
+The reasons for observing bad coverage are diverse. Not enough material might have been used for sequencing. Or a random error might have occurred during sequencing itself. Yet, these problems do usually result in a continuously bad coverage of a single sample, resp. those samples that were analyzed mutually. A different type of problem results from genes or regions in the genome, which are generally difficult to sequence. These difficulties often result from a high GC-content \cite{ross1}. Another problem might be primers, which were not designed optimally. If the two primers of an amplicon are located too far away from each other, a decrease in coverage is expected to be observed for all samples concerning parts of this amplicon.
+
+Plenty of programs exist for performing a coverage analysis. Programs like BEDtools \cite{bedtools} may quickly calculate the coverage of any given bam file. Thereby, the coverage of any defined windows or per base may be calculated. Similarly, the R package 'bamsignals' \cite{bamsignals} is able to extract information on the coverage of every position of interest from a given bam file. 
+
+When designing a targeted sequencing experiment and it comes to identifying regions, which show a generally bad coverage, it is necessary to combine the coverage of many samples. It appears useful to have a tool, that automatically combines the coverage information of different samples and provides different possibilities for analysis. 
+
+\emph{BadRegionFinder} is a package that allows for a coverage analysis of various samples at a time. The user is able to define individual thresholds that divide the coverage into three categories: bad, acceptable and good coverage. The whole genome may be considered as well as a set of target regions. Thereby, \emph{BadRegionFinder} does not only provide a possibility for identifying regions with a bad coverage, but also regions with a high coverage off target indicating that a pair of the designed primers might not be mapping uniquely or that there might be problems in the alignment.
+
+For the final analysis of the coverage quality different options are available: 
+
+\begin{itemize}
+\item summary variant, focusing on regions
+\item detailed variant (basewise results)
+\item summary variant, focusing on genes
+\end{itemize}
+
+\subsection{Loading the package}
+The package can be downloaded and installed with
+\medskip
+
+<<3installing,eval=FALSE>>=
+biocLite("BadRegionFinder")
+@
+
+After installation, the package can be loaded into R by typing
+\medskip
+
+<<4loading>>=
+library(BadRegionFinder)
+@
+\medskip
+
+into the R console.
+
+\emph{BadRegionFinder} requires the R-packages \emph{VariantAnnotation}, \emph{Rsamtools}, \emph{biomaRt}, \emph{GenomicRanges} and \emph{S4Vectors}, as well as functions from the R-packages \emph{utils}, \emph{stats}, \emph{grDevices} and \emph{graphics}. All of them are loaded automatically when using \emph{BadRegionFinder}. Furthermore the package \emph{BSgenome.Hsapiens.UCSC.hg19} is suggested. 
+
+\section{Determining and classifying the coverage}
+Prior to reporting and visualizing information on the coverage over all samples, the coverage of every sample at every position of interest has to be determined, the information has to be combined and classes concerning the coverage quality have to be assigned. To do so, different functions are available.
+
+\subsection{Determine the coverage}
+If the user is interested in investigating the coverage on and off target considering the whole genome, it is recommended to use the function \texttt{determineCoverage} with \texttt{TRonly = FALSE}. The function scans the whole genome and wherever a base is covered by at least one read or an originally targeted base is detected, detailed information concerning this position is written out.
+
+If the user is interested in investigating the coverage on target only, it is recommended to use the function \texttt{determineCoverage} with \texttt{TRonly = TRUE}. Again, the whole genome gets scanned, but only wherever a targeted base is registered, detailed information concerning this position is written out.
+
+For the correct functioning of \texttt{determineCoverage}, various input objects are necessary:
+
+\begin{itemize}
+\item The names of the samples to be analyzed have to be provided by a data frame object. There has to be one sample name per line without the ".bam" suffix.
+\end{itemize}
+
+Exemplary data frame object \emph{samples}:
+
+<<5>>=
+sample_file <- system.file("extdata", "SampleNames2.txt", package = "BadRegionFinder")
+samples <- read.table(sample_file)
+samples
+@
+
+\begin{itemize}
+\item The bam- and the corresponding bai files of the samples to be analyzed have to be provided in a folder. The names of the files have to match the names provided by the sample names file. Alternatively, a bamFileList may be defined.
+\item The target regions have to be provided by a data frame- or a GRanges object. If a data frame object is provided, the name of the chromosome (without "chr") has to be defined in the first column, the start position of the target region has to be defined in the second column and the end position of the region has to be defined in the third column.
+\end{itemize}
+
+Exemplary data frame object \emph{targetRegions}:
+
+<<6>>=
+target_regions <- system.file("extdata", "targetRegions2.bed", package = "BadRegionFinder")
+targetRegions <- read.table(target_regions, header = FALSE, stringsAsFactors = FALSE)
+targetRegions
+@
+
+\begin{itemize}
+\item The folder where the output shall be saved may be defined as well. For every chromosome that is defined in the genome, a file is written out: "Summary\_chr$<$chromosomename$>$.txt". Apart from information on the coverage, this file also contains information on whether the analyzed bases are part of the target region (targetBases = 1) or not (targetBases = 0). If only an empty string is provided, no files are written out. The results are stored in a GRangesList object.
+\end{itemize}
+
+Exemplary results for chromosome 2 (\texttt{TRonly = FALSE}):
+
+<<7>>=
+bam_input <- system.file("extdata", package = "BadRegionFinder")
+coverage_summary <- determineCoverage(samples, bam_input, targetRegions, "", TRonly = FALSE)
+coverage_summary[[2]]
+@
+
+\begin{itemize}
+\item Furthermore, it has to be defined, whether the coverage concerning the whole genome shall be reported (\texttt{TRonly = FALSE}), or only the coverage concerning the target regions (\texttt{TRonly = TRUE}).
+\end{itemize}
+
+\subsection{Determine the coverage quality}
+\label{classes}
+Apart from determining the coverage of every sample at all the positions of interest, it is essential to combine this information and to classify the coverage quality at every position. This is done by the function \texttt{determineCoverageQuality}. The function analyzes every position in the return value of \texttt{determineCoverage} (with \texttt{TRonly = FALSE} or \texttt{TRonly = TRUE}) and determines the corresponding coverage quality.
+
+There exist six different categories of coverage quality: bad coverage off target, bad coverage on target, acceptable coverage off target, acceptable coverage on target, good coverage off target, good coverage on target. These categories are numerically coded and user-defined. To define the thresholds, four essential parameters that have to be set:
+
+\begin{itemize}
+\item threshold1: the first coverage threshold
+\item percentage1: the first percentage threshold
+\item threshold2: the second coverage threshold
+\item percentage2: the second percentage threshold
+\end{itemize}
+
+To categorize the coverage quality, the coverage of each sample is first of all categorized according to \texttt{threshold1} and \texttt{threshold2} into three different categories:
+
+\begin{itemize}
+\item bad coverage: less than \texttt{threshold1} reads
+\item acceptable coverage: at least \texttt{threshold1}, but less than \texttt{threshold2} reads
+\item good coverage: at least \texttt{threshold2} reads
+\end{itemize}
+
+Subsequently this information gets combined with the defined precentages to obtain a numerically coded quality value for each region saved in the previously created GRangesList object \texttt{coverage\_summary}:
+
+\begin{itemize}
+\item 0: off target; not even \texttt{percentage1} percent of all samples have a good or acceptable coverage (bad region)
+\item 1: on target; not even \texttt{percentage1} percent of all samples have a good or acceptable coverage (bad region)
+\item 2: off target; at least \texttt{percentage1} percent of all samples have a good or acceptable coverage, but less than \texttt{percentage2} percent of all samples have a good coverage (acceptable region)
+\item 3: on target; at least \texttt{percentage1} percent of all samples have a good or acceptable coverage, but less than \texttt{percentage2} percent of all samples have a good coverage (acceptable region)
+\item 4: off target; at least \texttt{percentage2} percent of all samples have a good coverage (good region)
+\item 5: on target; at least \texttt{percentage2} percent of all samples have a good coverage (good region)
+\end{itemize}
+
+In addition to \texttt{threshold1}, \texttt{percentage1}, \texttt{threshold2} and \texttt{percentage2} the GRangesList object, that is the return value of \texttt{determineCoverage}, is necessary for the correct functioning of \texttt{determineCoverageQuality}.
+
+As the output is still in a very raw version, it is not directly saved by the function, but returned as a list object. 
+
+Exemplary output object \emph{coverage\_indicators} (chromosome 2):
+
+<<7>>=
+threshold1 <- 20
+threshold2 <- 100
+percentage1 <- 0.80
+percentage2 <- 0.90
+coverage_indicators <- determineCoverageQuality(threshold1, threshold2, percentage1,
+                                                percentage2, coverage_summary)
+coverage_indicators[[2]]
+@
+
+\subsection{Determine regions of interest}
+If the user is not interested in an analysis of the whole genome or of the whole target region, but just in a selction of regions (on and/or off target), these regions may be selected by the help of the function \texttt{determineRegionsOfInterest}. For every base defined to be in a \emph{region of interest}, the previously determined coverage information is written out. This information always includes the coverage of each sample and it may include the assigned class of coverage quality - depending on the input object.
+
+For the correct functioning of \texttt{determineRegionsOfInterest} two input objects are necessary:
+
+\begin{itemize}
+\item The regions of interest have to be provided by a data frame- or GRanges object. In case of a data frame object, the name of the chromosome (without "chr") has to be defined in the first column, the start position of the region of interest has to be defined in the second column and the end position of the region of interest has to be defined in the third column.
+\end{itemize}
+
+Exemplary data frame object \emph{regionsOfInterest}:
+
+<<8>>=
+regionsOfInterest<-data.frame(chr = c(2,2,17),
+                              start = c(198266420,198267200,74732940),
+                              end = c(198267032,198267800,74733301))
+regionsOfInterest
+@
+
+\begin{itemize}
+\item The input, which is the return value of \texttt{determineCoverageQuality} or \texttt{determineCoverage} (with \texttt{TRonly = FALSE} or \texttt{TRonly = TRUE}) (or \texttt{determineRegionsOfInterest}), has to be provided by a list object. Every component of the list considers one chromosome.
+\end{itemize}
+
+Exemplary output object \emph{coverage\_indicators\_2} (chromosome 2):
+<<9>>=
+coverage_indicators_2 <- determineRegionsOfInterest(regionsOfInterest, coverage_indicators)
+coverage_indicators_2[[2]]
+@
+
+It is not recommended to use \texttt{determineCoverage} with \texttt{TRonly=TRUE}, but to select regions off target using \texttt{determineRegionsOfInterest}. In this case, no coverage could be registered for all bases off target, as this information was not saved during the step of \texttt{determineCoverage}.
+
+If \texttt{regionsOfInterest} is identical compared to \texttt{targetRegions} and the function \texttt{determineCoverage} with \texttt{TRonly=TRUE} was applied in the first case, the selection of regions that is returned is not changed at all. 
+
+
+\section{Reporting the results}
+The function \texttt{determineCoverage} already produces some output files. Yet, these files just contain raw information on the coverage of every sample at every position in the whole genome, resp. the target region. Information on the coverage quality is not yet included in these files. To report this information, three different variants are available.
+
+\subsection{Summary variant (regions)}
+If the user likes to gain an overview of the coverage quality, it is recommended to use the function \texttt{reportBadRegionsSummary} to create a summary report considering all regions of interest, their coverage quality and the corresponding gene (including gene name and geneID).
+
+The function scans every position in the input object. Wherever subsequent bases feature the same coverage quality, the region gets summed up. Although it is not directly reported whether a region contains on or off target bases, this information can be gained from the coverage quality: all bases off target feature an even number characterizing the coverage quality; all bases on target feature an uneven number characterizing the coverage quality.
+
+For every summed up region the gene that is most likely to be targeted by the original experiment gets reported using biomaRt. If no gene can be found, "NA" is saved for the corresponding region. If not all bases in the summed up region cover a gene, the gene gets reported for the whole region nonetheless.
+
+For the correct functioning of \texttt{reportBadRegionsSummary} various input objects are necessary:
+
+\begin{itemize}
+\item Values defining the classes of coverage (\texttt{threshold1}, \texttt{percentage1}, \texttt{threshold2}, \texttt{percentage2}; for more details on the classes see section \ref{classes}).
+\item The input, which is the return value of \texttt{determineCoverageQuality} or \texttt{determineRegionsOfInterest}, has to be provided by a list object. Every component of the list considers one chromosome.
+\item If the information concerning the genes is not supposed to result from the human genome (hg19), a mart has to be provided (compare R/Bioconductor package biomaRt \cite{biomart}). Otherwise, the human genome (hg19) is used by default if an empty string is provided.
+\end{itemize}
+
+Exemplary mart (default mart):
+
+<<10>>=
+library(biomaRt)
+mart = useMart(biomart="ENSEMBL_MART_ENSEMBL",host="grch37.ensembl.org",
+               path="/biomart/martservice",dataset="hsapiens_gene_ensembl")
+mart
+@
+
+\begin{itemize}
+\item The folder where the output shall be saved may be defined. A single a file is written out: "BadCoverageSummary\texttt{threshold1};\texttt{percentage1};\texttt{threshold2};\texttt{percentage2}.txt". If no output shall be written out, an empty string may be passed.
+\end{itemize}
+
+Exemplary return value:
+
+<<11>>=
+badCoverageSummary <- reportBadRegionsSummary(threshold1, threshold2, percentage1,
+                                              percentage2, coverage_indicators_2, mart, "")
+badCoverageSummary
+@
+
+
+The output file may be visualized using the function \texttt{plotSummary} (see section \ref{plotSummary}).
+
+\subsection{Detailed variant}
+If the user likes to receive more detailed information on the coverage quality, it is recommended to use the function \texttt{reportBadRegionsDetailed} to create a detailed report considering all regions of interest (basewise), the coverage of each sample at the corresponding positions, the indicator whether the bases were originally targeted, their coverage quality and the corresponding gene (name and geneID).
+
+Different from the summed-up variant \texttt{reportBadRegionsSummary}, information on every single base of interest gets reported (except for completely uncovered and untargeted regions, which are excluded). For every base its position, the coverage of each sample, information on whether this base was originally targeted (value 1) or not (value 0), the coverage quality and the most likely gene (name and geneID) that was targeted by the original experiment get reported. Information on the gene names and the geneIDs result from biomaRt \cite{biomart}. If no gene can be found at a position, "NA" is reported for the corresponding base. 
+
+For the correct functioning of \texttt{reportBadRegionsSummary} various input objects are necessary:
+
+\begin{itemize}
+\item Values defining the classes of coverage (\texttt{threshold1}, \texttt{percentage1}, \texttt{threshold2}, \texttt{percentage2}; for more details on the classes see section \ref{classes}).
+\item The input, which is the return value of \texttt{determineCoverageQuality} or \texttt{determineRegionsOfInterest}, has to be provided by a list object. Every component of the list considers one chromosome.
+\item If the information concerning the genes is not supposed to result from the human genome (hg19), a mart has to be provided (compare R/Bioconductor package biomaRt \cite{biomart}). Otherwise, the human genome (hg19) is used by default if an empty string is provided.
+\item The names of the samples that were analyzed (just used for naming the columns in the output file correctly) have to be provided by a data frame object. There has to be one sample name per line.
+The folder where the output shall be saved may be defined. A single a file is written out: "BadCoverageChromosome$<$chromosomename$>$;\texttt{threshold1};\texttt{percentage1};\texttt{threshold2};\texttt{percentage2}.txt". If no output shall be written out, an empty string may be passed.
+\end{itemize}
+
+Exemplary return value for chromosome 2:
+
+<<12>>=
+coverage_indicators_temp <- reportBadRegionsDetailed(threshold1, threshold2, percentage1,
+                                                     percentage2, coverage_indicators_2, "",
+                                                     samples, "")
+coverage_indicators_temp[[2]]
+@
+
+The output file may be visualized using the function \texttt{plotDetailed} (see section \ref{plotDetailed}).
+
+\subsection{Summary variant (genes)}
+If the user likes to gain an overview of the coverage quality of each targeted gene, use of the function \texttt{reportBadRegionsGenes} is recommended. The function creates a summary report considering the coverage quality on a genewise level considering all regions of interest. 
+
+\texttt{reportBadRegionsGenes} sums up all regions covering the same gene in the following way: The number of bases falling into each quality category is summed up. Thereby, regions which were orignially targeted may easily be separated from those which were not, as targeted regions always feature an uneven number characterizing their coverage quality. If a region is broader than the detected gene, but the quality category is the same for the whole region, the whole region is assigned to the gene. If no gene is reported in the input file, the coverage quality is summed up for a gene named "NA". In a final step, the absolute number of bases is converted to a relative figure to allow for a better comparison between the different genes.
+
+For the correct functioning of \texttt{reportBadRegionsGenes} various input objects are necessary:
+
+\begin{itemize}
+\item Values defining the classes of coverage (\texttt{threshold1}, \texttt{percentage1}, \texttt{threshold2}, \texttt{percentage2}; for more details on the classes see section \ref{classes}).
+\item The input, which is the return value of \texttt{reportBadRegionsSummary} has to be provided (data frame object).
+\item The folder where the output shall be saved may be defined. A single file is written out: "BadCoverageGenes\texttt{threshold1};\texttt{percentage1};\texttt{threshold2};\texttt{percentage2}.txt". If no output shall be written out, an empty string may be passed.
+\end{itemize}
+
+Exemplary return value:
+
+<<13>>=
+badCoverageOverview <- reportBadRegionsGenes(threshold1, threshold2, percentage1, percentage2,
+                                             badCoverageSummary, "")
+badCoverageOverview
+@
+
+The output file may be visualized using the function \texttt{plotSummaryGenes} (see section \ref{plotGenes}).  
+
+\section{Visualizing the results}
+Apart from creating various textual reports, summing up the results of the coverage analysis, there exist functions to automatically visualize each type of report.
+
+\subsection{Summary variant (regions)}
+\label{plotSummary}
+If the user likes to visualize the output of \texttt{reportBadRegionsSummary}, it is recommended to use the function \texttt{plotSummary}. A line graph is returned, visualizing the number of bases that fall into each category of coverage quality. Furthermore, information on the genes located in these regions is included:
+
+On the y axis the coverage quality is coded. The different categories are color coded as well as height coded. As numbers from 0 to 5 were previously assigned to the different categories, thick lines are now drawn at the height of the category. Furthermore, The categories are color coded in the following way: red - bad region on target; yellow - acceptable region on target; green - good region on target; black - bad region off target; dark gray - acceptable region off target; light gray - good region off target.
+
+On the x axis the detected genes are printed. Wherever a new region covering a new gene is registered, a dashed line is drawn. 
+
+For the correct functioning of \texttt{reportBadRegionsSummary} various input objects are necessary:
+
+\begin{itemize}
+\item Values defining the classes of coverage (\texttt{threshold1}, \texttt{percentage1}, \texttt{threshold2}, \texttt{percentage2}; for more details on the classes see section \ref{classes}).
+\item The input, which is the return value of \texttt{reportBadRegionsSummary} has to be provided (data frame object).
+\item The folder where the output shall be saved may be defined as well. If it is defined, a png file is saved: "CoverageQuality\_Summary.png". If only an empty string is defined, the plot is printed on the screen.
+\end{itemize}
+
+<<13, fig = TRUE, height = 8, width = 20>>=
+plotSummary(threshold1, threshold2, percentage1, percentage2, badCoverageSummary, "")
+@
+
+\subsection{Detailed variant}
+\label{plotDetailed}
+If the user likes to visualize the output of \texttt{reportBadRegionsDetailed}, it is recommended to use the function \texttt{plotDetailed}. A line graph is returned, visualizing the median coverage over all samples at every position of interest. Furthermore, information on whether the base were originally targeted or not, on the coverage quality and the corresponding genes (name and geneID) that are located at the positions is included in the plot.
+
+On the y axis the median coverage over all samples is coded. Every position is considered individually.
+
+On the x axis the names of the detected genes are printed. Wherever a new region covering a new gene is registered, a dashed line is drawn. 
+
+Yet, additionally to the mere median coverage, the corresponding coverage quality at each position is also included in the plot. The different categories of coverage quality are color coded in the following way: red - bad region on target; yellow - acceptable region on target; green - good region on target; black - bad region off target; dark gray - acceptable region off target; light gray - good region off target. Thereby, on- and off target regions may easily be separated as well.
+
+For the correct functioning of \texttt{reportBadRegionsSummary} various input objects are necessary:
+
+\begin{itemize}
+\item Values defining the classes of coverage (\texttt{threshold1}, \texttt{percentage1}, \texttt{threshold2}, \texttt{percentage2}; for more details on the classes see section \ref{classes}).
+\item The input, which is the return value of \texttt{reportBadRegionsDetailed} has to be provided (list object).
+\item The folder where the output shall be saved may be defined as well. If it is defined, a png file is saved: "CoverageQuality\_Details.png". If only an empty string is defined, the plot is printed on the screen.
+\end{itemize}
+
+<<14, fig = TRUE, height = 8, width = 20>>=
+plotDetailed(threshold1, threshold2, percentage1, percentage2, coverage_indicators_temp, "")
+@
+
+\subsection{Summary variant (genes)}
+\label{plotGenes}
+If the user likes to visualize the output of \texttt{reportBadRegionsGenes}, it is recommended to use the function \texttt{plotSummaryGenes}. The function returns a barplot, visualizing the percentage of each gene that falls into each category of coverage quality. The plot thereby serves to quickly distinguish well from bad covered genes.
+
+For every gene either one or two stacked bars are plotted. If a gene is covered, but it was not originally targeted, a bar is plotted containing the following color code: black - bad region off target; dark gray - acceptable region off target; light gray - good region off target. If a gene was originally targeted, a bar is plotted containing the following color code: red - bad region on target; yellow - acceptable region on target; green - good region on target.
+
+For the correct functioning of \texttt{plotSummaryGenes}, various input objects are necessary:
+
+\begin{itemize}
+\item Values defining the classes of coverage (\texttt{threshold1}, \texttt{percentage1}, \texttt{threshold2}, \texttt{percentage2}; for more details on the classes see section \ref{classes}).
+\item The input, which is the return value of \texttt{reportBadRegionsGenes} has to be provided (data frame object).
+\item The folder where the output shall be saved may be defined as well. If it is defined, a png file is saved: "CoverageQuality\_Summary.png". If only an empty string is defined, the plot is printed on the screen.
+\end{itemize}
+
+<<15, fig = TRUE, height = 8, width = 20>>=
+plotSummaryGenes(threshold1, threshold2, percentage1, percentage2, badCoverageOverview, "")
+@
+
+
+\section{Additional functions}
+\subsection{Determine quantiles}
+Regarding the coverage analysis of many samples in parallel, it may be useful not just to divide the coverage into categories, but to determine certain quantiles over all samples concerning a predefined region of interest. In this case the function \texttt{determineQuantiles} may be used.
+
+Considering every chromosome and every position of interest individually, a set of user-defined quantiles is calculated over all samples. 
+
+For the correct functioning of \texttt{determineQuantiles}, three input objects are necessary:
+
+\begin{itemize}
+\item The input, which is the return value of \texttt{determineCoverage} (with \texttt{TRonly=FALSE} or \texttt{TRonly=TRUE}) or \texttt{determineRegionsOfInterest} (important: no information on the coverage quality) has to be provided (list object).
+\item The quantiles that should be calculated have to be provided by a vector (e.g. c(0.25,0.5,0.75)).
+\item The folder where the output shall be saved may be defined. It is saved as: "Quantiles\_chr$<$chromosomename$>$.txt". If no output shall be written out, an empty string may be passed.
+\end{itemize}
+
+Exemplary return value (chromosome 2):
+
+<<16>>=
+quantiles <- c(0.5)
+coverage_summary2 <- determineQuantiles(coverage_summary, quantiles, "")
+coverage_summary2[[2]]
+@
+
+\section{Runtime}
+The runtime of \texttt{BadRegionFinder} is highly dependent on the number of reads of the samples to be analyzed and the way they are scattered over the genome. Furthermore, the runtime is of course also dependent on the number of samples, the length of the genome and the number of bases that are in a \emph{region of interest}.
+
+The step which is most time consuming is certainly the application of the function \texttt{determineCoverage}. In the above described examples two samples were analyzed. Alltogether, 1608 bases were located on target (target region consisting of three distinct regions). However, what is much more important, 2174 bases are covered. In the case of the function \texttt{determineCoverage} with \texttt{TRonly=FALSE}, all covered bases are considered - on and off target. An analysis of the two samples scanning the whole human genome takes 2.207 seconds. If only the two chromosomes which are supposed to be covered (according to the defined target regions) are defined to be considered by the function (\texttt{TRonly=TRUE}), the analysis takes 1.93 seconds.
+
+In case the analysis is supposed to consider the coverage in the target region only, usage of the function \texttt{determineCoverage} with \texttt{TRonly=TRUE} is recommended. The difference in runtime is small, when only few reads are located off target, but it is considerably smaller when the bam files contain many scattered reads.
+
+The runtime of all the other functions is usually considerably smaller. Only in case of the whole genome being analyzed, a high number of scattered reads across the genome and many samples to be analyzed, running these functions may take loner than a minute.
+
+
+
+\newpage
+
+\bibliographystyle{plain}
+\bibliography{bibpaper}
+
+\end{document}

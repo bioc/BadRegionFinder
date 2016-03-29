@@ -1,0 +1,19 @@
+Package: BadRegionFinder
+Type: Package
+Title: BadRegionFinder: an R/Bioconductor package for identifying
+        regions with bad coverage
+Version: 0.99.9
+Date: 2016-03-07
+Author: Sarah Sandmann
+Maintainer: Sarah Sandmann <sarah.sandmann@uni-muenster.de>
+Description: BadRegionFinder is a package for identifying regions with
+        a bad, acceptable and good coverage in sequence alignment data
+        available as bam files. The whole genome may be considered as
+        well as a set of target regions. Various visual and textual
+        types of output are available.
+License: LGPL-3
+Imports: VariantAnnotation, Rsamtools, biomaRt, GenomicRanges,
+        S4Vectors, utils, stats, grDevices, graphics
+Suggests: BSgenome.Hsapiens.UCSC.hg19
+biocViews: Coverage, Sequencing, Alignment, WholeGenome, Classification
+NeedsCompilation: no
