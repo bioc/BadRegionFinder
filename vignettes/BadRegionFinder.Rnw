@@ -55,7 +55,7 @@ The package can be downloaded and installed with
 \medskip
 
 <<3installing,eval=FALSE>>=
-biocLite("BadRegionFinder")
+BiocManager::install("BadRegionFinder")
 @
 
 After installation, the package can be loaded into R by typing

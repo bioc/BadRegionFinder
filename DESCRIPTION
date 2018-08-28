@@ -2,7 +2,7 @@ Package: BadRegionFinder
 Type: Package
 Title: BadRegionFinder: an R/Bioconductor package for identifying
         regions with bad coverage
-Version: 1.9.0
+Version: 1.9.1
 Date: 2016-03-07
 Author: Sarah Sandmann
 Maintainer: Sarah Sandmann <sarah.sandmann@uni-muenster.de>
