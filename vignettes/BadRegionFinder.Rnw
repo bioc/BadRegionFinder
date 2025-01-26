@@ -224,7 +224,7 @@ Exemplary mart (default mart):
 
 <<10>>=
 library(biomaRt)
-mart = useMart(biomart="ENSEMBL_MART_ENSEMBL",host="grch37.ensembl.org",
+mart = useMart(biomart="ENSEMBL_MART_ENSEMBL",host="https://grch37.ensembl.org",
                path="/biomart/martservice",dataset="hsapiens_gene_ensembl")
 mart
 @
