@@ -128,7 +128,7 @@ reportBadRegionsDetailed <- function(threshold1, threshold2, percentage1,
             if(!is.na(coverage_indicators_temp[[i]][1,1])){
                 if(is.character(mart)){
                     mart = useMart(biomart="ENSEMBL_MART_ENSEMBL",
-                                   host="grch37.ensembl.org",
+                                   host="https://grch37.ensembl.org",
                                    path="/biomart/martservice",
                                    dataset="hsapiens_gene_ensembl")
                 }
