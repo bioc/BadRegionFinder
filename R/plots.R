@@ -156,7 +156,7 @@ plotDetailed <- function(threshold1, threshold2, percentage1, percentage2,
                 if(length(coverage_temp[,1]) > 0
                    && max(apply(coverage_temp[,4:(length(coverage_temp[1,])-4)],1,median)) > ydim){
                     ydim <- max(apply(coverage_temp[,4:(length(coverage_temp[1,])-4)],
-                                      1, median))
+                                      1, median),1,na.rm=T)
                 }
             }
         }   
